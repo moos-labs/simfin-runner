@@ -65,6 +65,54 @@ if sf is not None:
 findings["error_type"] = error_type
 findings["error_msg"] = error_msg
 
+# --- (2b) Test the library's documented 'free' default key ---
+# config.py defines: load_api_key(path='~/simfin_api_key.txt', default_key='free')
+# i.e. when no key file exists, the library falls back to the literal key 'free'.
+# Test whether that documented fallback actually grants access.
+free_error_type = None
+free_error_msg = None
+free_result_ok = False
+free_key_value = None
+if sf is not None:
+    record("")
+    record("=== Testing documented default 'free' key via simfin.load_api_key() ===")
+    try:
+        import inspect as _inspect
+        record(f"load_api_key signature: {_inspect.signature(sf.load_api_key)}")
+        record(f"load_api_key docstring: {inspect.getdoc(sf.load_api_key)!r}")
+    except Exception as e:
+        record(f"load_api_key introspection failed: {e}")
+    try:
+        sf.load_api_key(path="results/no_such_simfin_api_key.txt")
+        try:
+            free_key_value = sf.get_api_key()
+        except Exception:
+            free_key_value = "(get_api_key unavailable)"
+        record(f"API key after load_api_key() with missing file: {free_key_value!r}")
+        try:
+            sf.set_data_dir("results/simfin_data_free/")
+        except Exception:
+            pass
+        record("Retrying: simfin.load_companies(market='us') with the 'free' default key")
+        res2 = sf.load_companies(market="us")
+        free_result_ok = True
+        record(f"FREE-KEY CALL SUCCEEDED: type={type(res2).__name__} shape={getattr(res2, 'shape', 'n/a')}")
+        try:
+            record(f"Free-key result head:\n{res2.head()}")
+        except Exception:
+            pass
+    except Exception as e:
+        free_error_type = type(e).__name__
+        free_error_msg = str(e)
+        record(f"FREE-KEY CALL FAILED")
+        record(f"Exception type: {free_error_type}")
+        record(f"Exception message: {free_error_msg}")
+        record(traceback.format_exc())
+findings["free_error_type"] = free_error_type
+findings["free_error_msg"] = free_error_msg
+findings["free_result_ok"] = free_result_ok
+findings["free_key_value"] = free_key_value
+
 # --- (3) Documented keyless / bulk route? Inspect the installed library ---
 doc_evidence = []
 if sf is not None:
@@ -142,11 +190,21 @@ elif keyless_result is not None:
 else:
     md.append("No error recorded (import may have failed — see run.log).")
 md.append("")
+md.append("## Free default-key test (simfin.load_api_key, default_key='free')")
+md.append("")
+md.append(f"- **API key after `load_api_key()` with no key file:** `{free_key_value!r}` (source: `simfin/config.py` — `load_api_key(path='~/simfin_api_key.txt', default_key='free')`; `config.py:17` comment: \"The user's API key obtained when registering on www.simfin.com\")")
+if free_result_ok:
+    md.append("- **Result:** the retry of `simfin.load_companies(market='us')` with the `'free'` default key **SUCCEEDED** — free datasets are reachable without a personal registered key. A personal key is only needed for premium datasets / higher limits.")
+else:
+    md.append(f"- **Result:** the retry with the `'free'` default key **FAILED** — `{free_error_type}`: {free_error_msg}")
+    md.append("- So the documented `'free'` fallback does **not** grant access from this environment; a personal registered API key is required in practice.")
+md.append("")
 md.append("## What key is needed")
 md.append("")
-md.append("SimFin data downloads require a SimFin API key. The library exposes "
-          "`simfin.set_api_key(...)` for supplying it, and the installed package's "
-          "own text (see evidence in run.log) points users to simfin.com to obtain a key.")
+md.append("SimFin data downloads require a SimFin API key supplied via `simfin.set_api_key(...)` "
+          "(sent as an `Authorization: api-key <key>` header — `simfin/download.py:25-27`). "
+          "The installed package's own text (see evidence in run.log) points users to simfin.com to obtain a key: "
+          "`config.py:17`: 'The user's API key obtained when registering on www.simfin.com'.")
 md.append("")
 md.append("## Where it comes from")
 md.append("")
@@ -175,9 +233,17 @@ md.append("Evidence summary:")
 for ev in doc_evidence:
     md.append(f"- {ev}")
 md.append("")
-md.append("Conclusion recorded by the probe: no documented keyless route was identified in the "
-          "installed library other than calls that themselves require the API key; the older bulk "
-          "files route also required a key. The keyless call above is the primary evidence.")
+if free_result_ok:
+    md.append("Conclusion recorded by the probe: a personal key is NOT required for free datasets — "
+              "the library's own documented `load_api_key()` fallback (default_key='free') succeeded. "
+              "The no-key call fails (401), the bulk-download endpoint is the same route the library "
+              "uses for all datasets, and a personal registered key is only needed beyond the free tier.")
+else:
+    md.append("Conclusion recorded by the probe: no working keyless route exists in practice. The no-key "
+              "call failed (401, above), the documented 'free' default key also failed (see above), and "
+              "the bulk-download endpoint (https://prod.simfin.com/api/bulk-download/s3) is the library's "
+              "only download route and requires the Authorization header. A personal free API key from "
+              "simfin.com is required.")
 md.append("")
 
 with open("results/key_requirement.md", "w") as f:

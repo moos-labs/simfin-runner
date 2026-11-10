@@ -19,6 +19,8 @@ jobs:
         run: pip install simfin pandas
 
       - name: Run commands
+        env:
+          SIMFIN_API_KEY: ${{ secrets.SIMFIN_API_KEY }}
         run: ${{ vars.COMMANDS }}
 
       - name: Upload results

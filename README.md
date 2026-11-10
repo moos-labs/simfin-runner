@@ -10,6 +10,10 @@ Run [SimFin](https://github.com/SimFin/simfin) (`pip install simfin`) analysis o
 
 `scripts/simfin_probe.py` prints the installed simfin version (1.0.2), attempts a keyless data call (`simfin.load_companies(market='us')`) with no API key, records the exact exception, inspects the installed library for any documented keyless/bulk-download route, and writes `results/key_requirement.md`. It exits 0 — the keyless failure is the finding.
 
+## Pilot (keyed): US companies + AAPL income
+
+`scripts/simfin_pilot.py` is now the COMMANDS entry point. The workflow's Run-commands step injects `SIMFIN_API_KEY` from the org Actions secret. When the variable is present the script calls `sf.set_api_key(...)` (the value is never printed), loads the US companies dataset and the annual income statements, and writes `results/summary.json`, `results/companies_us.csv` and `results/aapl_income.csv`. When the variable is absent it records the documented keyless 401 in `results/summary.json` and exits 0, matching the original probe.
+
 ## Key requirement (summary)
 
 SimFin requires a personal API key for data downloads — proven by the probe:
